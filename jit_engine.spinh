@@ -1,0 +1,91 @@
+'' this assumes we use the whole LUT
+#define CACHE_TAG_SIZE $100
+
+{{
+   JIT engine for P2
+   Copyright 2019 Total Spectrum Software Inc.
+   MIT Licensed, see JIT.md for details.
+
+   The main entry point is jit_set_pc, which is given
+   ptrb pointing at the HUB address of the VM code to
+   execute. This does a LUT lookup to find the cached
+   P2 code, then jumps to it.
+
+   If there is a cache miss we call compile_bytecode_instr
+   repeatedly with ptrb pointing at the next instruction to
+   compile. When a branch is compiled, or we run out of cache
+   space, we close out the cache line then jump to it.
+}}
+
+{ Initialize the cache
+  Must be called from VM startup, and is called again whenever the
+  cache overflows.
+  Trashes: pa, pb, LUT
+  
+}
+
+jit_init_cache
+	neg	pa, #1
+	mov	pb, #0
+	rep	@.endloop, #256
+	wrlut	pa, pb
+	add	pb, #1
+.endloop
+
+{
+   Set the PC to ptrb. This should be called from the VM at startup,
+   and is called again at runtime for every branch.
+   There are actually two entry points:
+   
+   jit_set_pc is the normal one that does cache lookups
+   jit_trampoline is similar, but if it sees a cache hit then it
+   fixes up our caller to avoid future cache lookups (does a
+   direct cache to cache jump). This is for internal use, and relies
+   on calld to set the pa register to the caller's address.
+
+   Trashes:
+     This is not intended to be used as a subroutine
+   
+}
+jit_set_pc
+	mov	pa, #4		' source for dest is unknown
+	
+jit_trampoline
+	'' check for a cache it by looking in the LUT
+	'' NOTE: this code assumes that all bits of the PC in ptrb are
+	'' significant. If you know that ptrb is aligned differently,
+	'' you should shift and mask
+	
+	getbyte	 jit_instr, ptrb, #0
+	rdlut	 jit_temp, instr		' fetch cached trace
+	cmp	 jit_temp, ptrb wz		' does it match our PC?
+ if_nz	jmp	 #cache_miss 		' if not in cache, recompile
+
+ 	'' code for a cache hit
+	'' if a cache hit, just load the cached address
+	'' into orig_cachepc
+	add	jit_instr, #CACHE_TAG_SIZE
+	rdlut	jit_orig_cachepc, jit_instr
+
+	'' if pa is <> 4, then it's a return address from
+	'' the instruction that came here; fix that instruction
+	'' up
+	'' BEWARE: pa can come in with some high bits set
+	'' so don't rely on those bits
+	sub	pa, #4 wz
+  if_z	jmp	#goto_cache
+
+	'' OK, pa points at the instruction to fix up now
+	'' be careful to copy over the condition bits too
+	rdlong	condition, pa      ' fetch original
+	and	condition, jit_cond_mask
+	mov	jit_instr, jit_plain_jmp_pat
+	andn	jit_instr, jit_cond_mask
+	or     	jit_instr, jit_orig_cachepc
+	or     	jit_instr, condition
+	wrlong 	jit_instr, pa
+
+	jmp	jit_orig_cachepc+0	' indirect jump to the cached code
+
+	'' OK, we have to compile a new trace
+cache_miss

@@ -1,0 +1,15 @@
+{{
+   Variable declarations for JIT compiler.
+
+   These are some variables that the JIT needs internally
+}}
+
+
+jit_instr	res	1	' instruction to output
+jit_instrptr	res	1	' pointer for sequence of instructions
+jit_orig_cachepc
+		res	1	' start of current cache line
+jit_cacheptr	res	1	' pointer into cache
+jit_cachecnt	res	1	' number of longs left in cache
+
+jit_temp	res	1	' scratch variable
