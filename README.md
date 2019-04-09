@@ -37,6 +37,6 @@ Change this if you want to try out a different program.
   * sample_xbyte.spin2: xbyte based interpreter
   * util_serial.spin2:  some serial utilities
   * timing.bytecode:    timing program
-  * blink,bytecode:     blink program
+  * blink.bytecode:     blink program
   * vm.txt:             description of VM
 
