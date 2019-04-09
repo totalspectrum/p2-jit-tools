@@ -70,6 +70,30 @@ trace.
      
 ## Usage
 
+### Compile time
+
+The JIT engine needs some memory for a cache. You can do this in one of
+two ways. For a HUB cache (the default) create symbols CACHE_START and
+CACHE_END pointing to the start and end of the cache. For best
+performance make sure these are long aligned.
+
+For example:
+
+```
+    orgh   ' must be in HUB after $800
+    alignl
+CACHE_START
+    byte 0[4096]   ' 4K cache
+CACHE_END
+```
+
+Alternatively, you can keep the cache entirely in LUT. This makes for
+a relatively small cache (only 1.5K) but for small programs may
+improve performance. To do this, define the symbol USE_LUT_CACHE
+before including `jit_engine.spinh`.
+
+### Runtime
+
 As part of your VM initialization, make sure to call `jit_init_cache`.
 
 After your interpreter has done its setup, it should set `ptrb` to the
@@ -87,14 +111,22 @@ bytecode instruction and convert it to a sequence of P2 instructions.
 It's OK if a VM instruction needs several bytes; just make sure to
 leave `ptrb` pointing after the whole instruction.
 
-For each P2 instruction that the VM emits, it should set the variable
-`instr` to contain the P2 instruction and then call `jit_emit_instr`.
-This will place the P2 instruction into the cache. Note that the P2
-instructions generated with `jit_emit_instr` should *not* change the
-control flow of the VM code; for those we need `jit_emit_direct_branch`
-and `jit_emit_iindirect_branch`. It is OK for the P2 instruction to be
-a subroutine call to some runtime support code, but that support code
-should return to its original place (or abort the program entirely).
+To generate some P2 instructions, set the variable `jit_instrptr`
+to point to the P2 instructions (in COG memory), set `pb` to the
+number of instructions, and then call `jit_emit`. For example, to
+generate 3 instructions starting at `my_add_pattern`, do:
+```
+   mov    jit_instrptr, #my_add_pattern
+   callpb #3, #jit_emit
+```
+This will place the P2 instructions into the cache.
+
+Note that the P2 instructions generated with `jit_emit` should *not*
+change the control flow of the VM code; for those we need
+`jit_emit_direct_branch` and `jit_emit_iindirect_branch`. It is OK
+for the P2 instructions to contain a subroutine call to some runtime
+support code, but that support code should return to its original place
+(or abort the program entirely).
 
 For a branch instruction, there are `jit_emit_direct_branch` and
 `jit_emit_indirect_branch`. These will close out a trace and return
@@ -110,3 +142,33 @@ See the P2 instruction set manual for details. If a `0` is passed in
 `condition` to one of the emit_branch functions, it will close out the
 cache line but not emit any branch (implicitly it will produce
 a branch to the next PC in `ptrb`).
+
+## API
+
+### jit_init
+
+Initialize the JIT engine.
+
+### jit_emit
+
+Emit generated instructions from COG memory. `jit_instrptr` points at
+the instructions to emit, and `pb` gives the number of instructions to
+emit. Use this only for non-branch instructions.
+
+### jit_emit_direct_branch
+
+Emit a conditional branch instruction. `jit_condition` is a 4 bit
+value giving the P2 condition (except that condition 0 means "never",
+just as in P1). `jit_instrptr` gives the branch destination.
+
+This function will not return, so it must be the last one called when
+generating code for a VM branch instruction.
+
+### jit_emit_indirect_branch
+
+Emits an indirect branch instruction. `jit_condition` is a 4 bit value
+giving the P2 condition (0 means "never"). Code to put the new PC into
+the `ptrb` register must have been generated prior to this call.
+
+This function will not return, so it must be the last one called when
+generating code for a VM branch instruction.
