@@ -46,6 +46,5 @@ interpreter_start
 #include "timing.bytecode"
 
 	alignl
-	long 0[1024]
 stack_base
-	long 0[1024]
+	long 0[256]

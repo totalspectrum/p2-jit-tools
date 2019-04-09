@@ -1,0 +1,83 @@
+''
+'' simple bytecode program to toggle pin 56 5
+'' times; should take 5 seconds, or about 800_000_000 cycles
+''
+InitialPC
+  byte OP_PUSHIM
+  long @startmsg
+  byte OP_PRSTR
+
+  byte OP_GETCNT
+  byte OP_PUSHIM
+  long @starttime
+  byte OP_STORE
+
+  '' establish loop counter: toggle 5 times
+  byte OP_PUSHIM
+  long 5	' loop counter
+loop
+  byte OP_PUSHIM
+  long 56
+
+  byte OP_PINLO
+
+  byte OP_PUSHIM
+  long 80_000_000
+  byte OP_DELAY
+  
+  byte OP_PUSHIM
+  long 56
+  byte OP_PINHI
+
+  byte OP_PUSHIM
+  long 80_000_000
+  byte OP_DELAY
+  
+  ' decrement loop counter
+  ' next two commented out lines can be used to print it
+  byte OP_DUP
+  byte OP_PRHEX
+  
+  byte OP_PUSHIM
+  long 1
+  byte OP_SUB
+  byte OP_DUP
+
+  byte OP_JZ
+  long exitloop
+
+  byte OP_PUSHIM
+  long 0
+  byte OP_JZ
+  long loop
+
+exitloop
+  ' push elapsed time onto stack
+  byte OP_GETCNT
+  byte OP_PUSHIM
+  long @starttime
+  byte OP_LOAD
+  byte OP_SUB
+
+  ' print elapsed time
+  byte OP_PUSHIM
+  long @endmsg
+  byte OP_PRSTR
+  
+  byte OP_PRHEX
+  
+  ' end of loop
+  byte OP_HALT
+
+startmsg
+	byte "starting..."
+newline
+	byte 13, 10, 0
+endmsg
+	byte "elapsed cycles: 0x", 0
+
+	alignl
+starttime  long 0
+endtime    long 0
+vara	   long 0
+

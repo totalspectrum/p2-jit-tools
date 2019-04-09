@@ -18,7 +18,12 @@ instructions:
 0E = DUP: duplicate top of stack
 0F = SWAP: swap top two elements of stack
 
-useful sequences:
+Any other opcode will be treated as HALT. The HALT state doesn't
+really stop the P2, it instead sends it into a loop where we blink
+pin 57.
+
+
+Useful bytecode sequences:
 
 unconditional jump to target:
 

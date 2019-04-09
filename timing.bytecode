@@ -1,0 +1,71 @@
+''
+'' simple bytecode program to toggle pin 0
+'' as quickly as possible 1000000 times
+''
+InitialPC
+  byte OP_PUSHIM
+  long @startmsg
+  byte OP_PRSTR
+  
+  byte OP_GETCNT
+  byte OP_PUSHIM
+  long @starttime
+  byte OP_STORE
+
+  '' establish loop counter: toggle 1000000 times
+  byte OP_PUSHIM
+  long 1000000	' loop counter
+loop
+  byte OP_PUSHIM
+  long 0
+  byte OP_PINLO
+
+  byte OP_PUSHIM
+  long 0
+  byte OP_PINHI
+
+  ' decrement loop counter
+  
+  byte OP_PUSHIM
+  long 1
+  byte OP_SUB
+  byte OP_DUP
+  
+  byte OP_JZ
+  long exitloop
+
+  byte OP_PUSHIM
+  long 0
+  byte OP_JZ
+  long loop
+
+exitloop
+  ' push elapsed time onto stack
+  byte OP_GETCNT
+  byte OP_PUSHIM
+  long @starttime
+  byte OP_LOAD
+  byte OP_SUB
+
+  ' print elapsed time
+  byte OP_PUSHIM
+  long @endmsg
+  byte OP_PRSTR
+  
+  byte OP_PRHEX
+  
+  ' end of loop
+  byte OP_HALT
+
+startmsg
+	byte "toggling pin 0 1_000_000 times:"
+newline
+	byte 13, 10, 0
+endmsg
+	byte "done. elapsed cycles: $", 0
+
+	alignl
+starttime  long 0
+endtime    long 0
+vara	   long 0
+

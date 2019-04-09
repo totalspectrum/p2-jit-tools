@@ -1,6 +1,9 @@
 '' this assumes we use the whole LUT
 #define CACHE_TAG_SIZE $100
 
+' 1K cache for compiled bytecodes
+#define CACHE_SIZE 1024
+
 {{
    JIT engine for P2
    Copyright 2019 Total Spectrum Software Inc.
@@ -11,7 +14,7 @@
    execute. This does a LUT lookup to find the cached
    P2 code, then jumps to it.
 
-   If there is a cache miss we call compile_bytecode_instr
+   If there is a cache miss we call compile_bytecode
    repeatedly with ptrb pointing at the next instruction to
    compile. When a branch is compiled, or we run out of cache
    space, we close out the cache line then jump to it.
@@ -20,18 +23,21 @@
 { Initialize the cache
   Must be called from VM startup, and is called again whenever the
   cache overflows.
-  Trashes: pa, pb, LUT
-  
+  Trashes: pb, jit_temp, LUT  
 }
 
-jit_init_cache
-	neg	pa, #1
+jit_init
+	'' fall through to jit_init_cache
+jit_reinit_cache
+	neg	jit_temp, #1
 	mov	pb, #0
 	rep	@.endloop, #256
-	wrlut	pa, pb
+	wrlut	jit_temp, pb
 	add	pb, #1
 .endloop
-
+	mov	jit_cachepc, jit_base_of_cache_mem
+	ret
+	
 {
    Set the PC to ptrb. This should be called from the VM at startup,
    and is called again at runtime for every branch.
@@ -48,44 +54,176 @@ jit_init_cache
    
 }
 jit_set_pc
-	mov	pa, #4		' source for dest is unknown
+		mov	pb, #4		' source for dest is unknown
 	
-jit_trampoline
-	'' check for a cache it by looking in the LUT
-	'' NOTE: this code assumes that all bits of the PC in ptrb are
-	'' significant. If you know that ptrb is aligned differently,
-	'' you should shift and mask
+jit_trampoline_set_pc
+#ifdef DEBUG_ENGINE
+		mov	uart_char, #"="
+		call	#ser_tx
+		mov	uart_num, ptrb
+		call	#ser_hex
+#endif
+		'' check for a cache hit by looking in the LUT
+		'' NOTE: this code assumes that all bits of the PC in ptrb are
+		'' significant. If you know that ptrb is aligned differently,
+		'' you should shift and mask
 	
-	getbyte	 jit_instr, ptrb, #0
-	rdlut	 jit_temp, instr		' fetch cached trace
-	cmp	 jit_temp, ptrb wz		' does it match our PC?
- if_nz	jmp	 #cache_miss 		' if not in cache, recompile
+		getbyte	 jit_instr, ptrb, #0
+		rdlut	 jit_temp, jit_instr		' fetch cached trace
+		cmp	 jit_temp, ptrb wz		' does it match our PC?
+    if_nz	jmp	 #cache_miss 		' if not in cache, recompile
 
- 	'' code for a cache hit
-	'' if a cache hit, just load the cached address
-	'' into orig_cachepc
-	add	jit_instr, #CACHE_TAG_SIZE
-	rdlut	jit_orig_cachepc, jit_instr
+    		'' code for a cache hit
+		'' if a cache hit, just load the cached address
+		'' into orig_cachepc
+		add	jit_instr, #CACHE_TAG_SIZE
+		rdlut	jit_orig_cachepc, jit_instr
 
-	'' if pa is <> 4, then it's a return address from
-	'' the instruction that came here; fix that instruction
-	'' up
-	'' BEWARE: pa can come in with some high bits set
-	'' so don't rely on those bits
-	sub	pa, #4 wz
-  if_z	jmp	#goto_cache
+		'' if pb is <> 4, then it's a return address from
+		'' the instruction that came here; fix that instruction
+		'' up
+		'' BEWARE: pb can come in with some high bits set
+		'' so don't rely on those bits
+		sub	pb, #4 wz
+    if_z	jmp	#goto_cache
+		
+		'' OK, pb points at the instruction to fix up now
+		'' be careful to copy over the condition bits too
+		rdlong	jit_condition, pb      ' fetch original
+		and	jit_condition, jit_cond_mask
+		
+		mov	jit_instr, jit_plain_jmp_pat
+		andn	jit_instr, jit_loc_mask
+		andn	jit_instr, jit_cond_mask
+		or     	jit_instr, jit_condition
+		or     	jit_instr, jit_orig_cachepc
+		wrlong 	jit_instr, pb
+goto_cache
+		jmp	jit_orig_cachepc+0	' indirect jump to the cached code
 
-	'' OK, pa points at the instruction to fix up now
-	'' be careful to copy over the condition bits too
-	rdlong	condition, pa      ' fetch original
-	and	condition, jit_cond_mask
-	mov	jit_instr, jit_plain_jmp_pat
-	andn	jit_instr, jit_cond_mask
-	or     	jit_instr, jit_orig_cachepc
-	or     	jit_instr, condition
-	wrlong 	jit_instr, pa
-
-	jmp	jit_orig_cachepc+0	' indirect jump to the cached code
-
-	'' OK, we have to compile a new trace
+		'' OK, we have to compile a new trace
 cache_miss
+		' OK, we got a cache miss here
+		' so we have to compile a new trace
+
+		' if the cache is full, flush it
+		mov	temp2, jit_top_of_cache_mem
+		subs	temp2, jit_cachepc wcz
+
+    if_be	call	#jit_reinit_cache
+
+    		wrlut	ptrb, jit_instr		' update cached pc
+		mov	jit_orig_cachepc, jit_cachepc	' save the starting cachepc
+		add	jit_instr, #CACHE_TAG_SIZE
+		wrlut	jit_orig_cachepc, jit_instr
+#ifdef DEBUG_ENGINE
+		mov	uart_char, #">"
+		call	#ser_tx
+		mov	uart_num, jit_orig_cachepc
+		call	#ser_hex
+#endif
+
+compile_loop
+		call	#compile_bytecode
+' done_instruction
+
+		' is there room for another instruction?
+		' if not, close out the cache line
+		mov	temp, jit_top_of_cache_mem
+		subs	temp, jit_cachepc wcz
+	if_a	jmp	#compile_loop
+
+close_trace
+		jmp	#jit_emit_jump_to_ptrb
+
+jit_direct_jump_pat
+		loc	ptrb, #\0-0
+		calld	pb, #\jit_trampoline_set_pc
+jit_indirect_jump_pat
+		jmp	#\jit_set_pc
+		
+''''''''''''''''''''''
+'' emit a direct branch to the
+'' value in jit_instrptr
+'' closes out the cache line and
+'' does not return
+'' the branch may be conditional
+'' based on the "condition" variable
+''''''''''''''''''''''
+jit_emit_direct_branch
+		shl	jit_condition, #28 wz	' put condition in top part
+		andn	jit_direct_jump_pat, jit_loc_mask
+		or     	jit_direct_jump_pat, jit_instrptr
+		andn	jit_direct_jump_pat+1, jit_cond_mask
+		or	jit_direct_jump_pat+1, jit_condition
+		mov	jit_instrptr, #jit_direct_jump_pat
+    if_nz	callpb 	#2, #jit_emit		' skip branch if condition is 0
+jit_finish_line
+		cmp	jit_condition, jit_cond_mask wz
+    if_z	jmp	jit_orig_cachepc+0
+    
+jit_emit_jump_to_ptrb
+		'' emit another direct branch
+		mov	jit_instrptr, ptrb
+		mov	jit_condition, #$f	' unconditional branch
+		jmp	#jit_emit_direct_branch
+
+jit_cond_mask	long	$f0000000
+
+''''''''''''''''''''''
+'' emit an indirect branch to the
+'' value already compiled into ptrb
+'' closes out the cache line and
+'' does not return
+'' the branch may be conditional
+'' based on the "condition" variable
+''''''''''''''''''''''
+jit_emit_indirect_branch
+		shl	jit_condition, #28 wz	' normalize condition
+		andn	jit_indirect_jump_pat, jit_cond_mask
+		or	jit_indirect_jump_pat, jit_condition
+		mov	jit_instrptr, #jit_indirect_jump_pat
+    if_nz	callpb 	#1, #jit_emit		' skip the jump if condition is 0
+		jmp	#jit_finish_line
+
+''
+'' emit instructions starting at
+'' jit_instrptr
+''
+#ifdef DEBUG_ENGINE
+tmp_ptr long 0
+#endif
+
+jit_emit
+#ifdef DEBUG_ENGINE_NEVER
+		mov	uart_char, #"^"
+		call	#ser_tx
+		mov	uart_num, pb
+		call	#ser_hex
+#endif
+		setd	do_emit_instr, jit_instrptr
+		sub	pb, #1 wz
+	if_nz	setq	pb
+do_emit_instr
+		wrlong	0-0, jit_cachepc
+		add	pb, #1
+		shl	pb, #2
+#ifdef DEBUG_ENGINE_NEVER
+		mov	tmp_ptr, jit_cachepc
+		add	jit_cachepc, pb
+.loop
+		mov	uart_char, #"+"
+		call	#ser_tx
+		rdlong	uart_num, tmp_ptr
+		add	tmp_ptr, #4
+		call	#ser_hex
+		subs	pb, #4 wcz
+	if_a	jmp	#.loop
+#else
+	_ret_	add	jit_cachepc, pb
+#endif
+
+jit_plain_jmp_pat
+		jmp	#\$abcd
+		
+jit_loc_mask	long	$000fffff	' 20 bits
