@@ -214,6 +214,7 @@ jit_emit_indirect_branch
 ''
 #ifdef DEBUG_ENGINE
 tmp_ptr long 0
+pb_copy	long 0
 #endif
 
 jit_emit
@@ -224,6 +225,18 @@ jit_emit
 		call	#ser_hex
 		mov	uart_num, jit_cachepc
 		call	#ser_hex
+#ifdef USE_DISASM
+		'' disassemble the words we are creating
+		call	#ser_nl
+		mov	pb_copy, pb
+		mov	tmp_ptr, jit_instrptr
+emit_dis_loop
+		alts	tmp_ptr, #0
+		mov	dis_instr, 0-0
+		add	tmp_ptr, #1
+		call	#disassemble
+		djnz	pb_copy, #emit_dis_loop
+#endif
 #endif
 #ifdef USE_LUT_CACHE
 jit_emit_loop

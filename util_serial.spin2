@@ -78,4 +78,9 @@ ser_hex
 		mov	uart_char, #" "
 		jmp	#ser_tx
 
+ser_nl		mov	uart_char, #13
+		call	#ser_tx
+		mov	uart_char, #10
+		jmp	#ser_tx
+		
 uart_temp	long	0

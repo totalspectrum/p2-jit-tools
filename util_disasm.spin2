@@ -1,0 +1,95 @@
+''
+'' disassembler
+''
+'' call with dis_instr holding the instruction to disassemble
+'' prints a disassembly for that instruction
+''
+'' requires variables:
+'' dis_instr
+'' dis_temp1
+'' dis_temp2
+'' dis_ptr
+'' 
+#define PRINT_SRC       1
+#define PRINT_DST       2
+#define PRINT_WCZ       4
+#define PRINT_COND      8
+#define PRINT_IMMSRC   16
+#define PRINT_AUGSRC   32
+#define PRINT_LOCSRC   64
+#define PRINT_LOCDST  128
+#define PRINT_RDWR    256
+
+disassemble
+	mov	dis_ptr, ##@@@disasm_tab
+	
+	'' try to find the instruction in the table
+dis_loop
+	rdlong	dis_temp1, dis_ptr	' get pattern
+	add	dis_ptr, #4
+  	rdlong	dis_temp2, dis_ptr	' get mask
+	add	dis_ptr, #4
+	and	dis_temp2, dis_instr
+	cmp	dis_temp1, dis_temp2 wz	' match?
+  if_z	jmp	#dis_hit
+  	add	dis_ptr, #8
+	jmp	#dis_loop
+	
+dis_hit
+	mov	uart_num, dis_ptr
+	sub	uart_num, #8
+	call	#ser_hex
+	
+	'' print the raw instruction bits
+	mov	uart_num, dis_instr
+	call	#ser_hex
+	
+	rdlong	dis_temp1, dis_ptr	' get flags
+	add	dis_ptr, #4
+
+	'' print condition code
+	mov	uart_str, dis_instr
+	shr	uart_str, #28
+	and	uart_str, #$f		' extract condition
+	test	dis_temp1, #PRINT_COND wc
+  if_nc	mov	uart_str, #$f	        ' do not print
+  	shl	uart_str, #3		' multiply pointer by 8
+	add	uart_str, ##@@@disasm_cond_table
+	call	#ser_str
+
+	'' print opcode
+	rdlong	uart_str, dis_ptr	' get opcode name
+	call	#ser_str
+
+	'' should parse src and dest here
+	'' not finished yet
+
+	'' this is the basic instruction form
+	mov    uart_num, dis_instr
+	shr    uart_num, #9
+	and    uart_num, #$1ff
+	call   #uart_hex3
+	mov    uart_char, #","
+	call   #ser_tx
+	mov    uart_char, #"#"
+	test   uart_num, ##$00040000 wc
+  if_c	call   #ser_tx
+	mov    uart_num, dis_instr
+	and    uart_num, #$1ff
+	call   #uart_hex3
+	
+	'' done
+	jmp	#ser_nl
+
+	'' print 3 uart hex digits
+uart_hex3
+	mov	dis_cnt, #3
+.digitloop
+	getnib	uart_char, uart_num, #2
+	shl	uart_num, #4
+	cmp	uart_char, #10 wcz
+if_b	add	uart_char, #"0"
+if_ae	add	uart_char, #"A"-10
+	call	#ser_tx
+	djnz	dis_cnt, #.digitloop
+	ret

@@ -3,7 +3,8 @@
 '' Optimized version
 ''
 
-'#define DEBUG_ENGINE
+#define DEBUG_ENGINE
+#define USE_DISASM
 
 interpreter_start
 		'' initialize serial
@@ -281,6 +282,16 @@ jit_temp
 temp		long 0
 memp		long 0
 
+#ifdef USE_DISASM
+#include "util_disasm.spin2"
+
+dis_instr	long	0
+dis_temp1	long	0
+dis_temp2	long	0
+dis_ptr		long	0
+dis_cnt		long	0
+#endif
+
 		'' opcode table
 		'' for this VM we use a pretty straightforward mapping of
 		'' instructions to patterns
@@ -348,4 +359,9 @@ start_message
 CACHE_BASE
 		long 0[1024]
 CACHE_END
+#endif
+
+#ifdef USE_DISASM
+		alignl
+#include "disasm/disasm_tab.spin2"
 #endif
