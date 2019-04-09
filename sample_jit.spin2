@@ -212,10 +212,6 @@ opcode_table
 
 #include "jit_engine.spinh"
 
-jit_base_of_cache_mem
-		long	$40000
-jit_top_of_cache_mem
-		long	$48000 - 16
 jit_condition
 		res	1
 jit_instr
@@ -231,13 +227,19 @@ temp2
 
 		fit	$1e0
 		
-		orgh
+		orgh  
 start_message
 		byte "JIT sample program", 13, 10, 0
 
+#ifndef USE_LUT_CACHE
+		orgh	$800  ' make sure we are past LUT addresses
+		
+		' the JIT ENGINE will expect
+		' CACHE_BASE and CACHE_END to be
+		' defined; it also expects
+		' there to be some slop after CACHE_END
 		alignl
 CACHE_BASE
-		long 0[CACHE_SIZE]
+		long 0[1024]
 CACHE_END
-
-
+#endif

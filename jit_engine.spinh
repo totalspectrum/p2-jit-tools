@@ -227,3 +227,15 @@ jit_plain_jmp_pat
 		jmp	#\$abcd
 		
 jit_loc_mask	long	$000fffff	' 20 bits
+
+#ifdef USE_LUT_CACHE
+jit_base_of_cache_mem
+		long	$280
+jit_top_of_cache_mem
+		long	$3f8
+#else
+jit_base_of_cache_mem
+		long	@@@CACHE_BASE ' $78000
+jit_top_of_cache_mem
+		long	@@@CACHE_END ' $7c000 - 16
+#endif
