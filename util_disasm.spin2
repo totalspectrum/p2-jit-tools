@@ -36,10 +36,6 @@ dis_loop
 	jmp	#dis_loop
 	
 dis_hit
-	mov	uart_num, dis_ptr
-	sub	uart_num, #8
-	call	#ser_hex
-	
 	'' print the raw instruction bits
 	mov	uart_num, dis_instr
 	call	#ser_hex
@@ -72,7 +68,7 @@ dis_hit
 	mov    uart_char, #","
 	call   #ser_tx
 	mov    uart_char, #"#"
-	test   uart_num, ##$00040000 wc
+	test   dis_instr, ##$00040000 wc
   if_c	call   #ser_tx
 	mov    uart_num, dis_instr
 	and    uart_num, #$1ff
