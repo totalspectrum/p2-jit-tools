@@ -64,7 +64,7 @@ jz_instr
 	_ret_	rdlong	tos, --ptra	' pop off tos
 
 jneg_instr
-		cmp	tos, #0 wcz
+		cmps	tos, #0 wcz
 		rflong	temp		' fetch new PC
 	if_c	rdfast	#0, temp	' if tos < 0, set new pc
 	_ret_	rdlong	tos, --ptra	' pop off tos

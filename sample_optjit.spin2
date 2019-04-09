@@ -48,17 +48,22 @@ compile_bytecode
 		'' compile a pushim instruction
 		''
 compile_immediate_routine
-		call	#stack_grow			' make room on stack
 		rdlong	temp, ptrb++			' fetch the immediate
+		call	#stack_grow			' make room on stack
+		setd	pushim_instr_pat+1, stack_reg_tos ' register to put immediate in
 		sets	pushim_instr_pat+1, temp	' set the low bits
-		shr	temp, #9	 		' extract upper 23 bits
+		shr	temp, #9 wz	 		' extract upper 23 bits
+	if_z	jmp	#no_augment_required		' if all 0, no augment needed
 		and	pushim_instr_pat, ##$FF800000	' zero out immediate bits of augment
 		or	pushim_instr_pat, temp		' and now set them to correct values
-		setd	pushim_instr_pat+1, stack_reg_tos
 		mov	jit_instrptr, #pushim_instr_pat
 		mov	pb, #2
 		jmp	#jit_emit			' go emit the whole augmented instruction
-
+no_augment_required
+		mov	jit_instrptr, #pushim_instr_pat+1
+		mov	pb, #1
+		jmp	#jit_emit
+		
 		''
 		'' compile a LOAD instruction
 		''

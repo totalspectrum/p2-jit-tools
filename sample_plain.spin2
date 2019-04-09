@@ -69,7 +69,7 @@ jz_instr
 		ret
 		
 jneg_instr
-		cmp	tos, #0 wcz
+		cmps	tos, #0 wcz
 		rdlong	tos, --ptra	' pop off tos
 		rdlong	temp, ptrb++	' fetch new PC
 	if_c	mov	ptrb, temp	' if tos < 0, set new pc

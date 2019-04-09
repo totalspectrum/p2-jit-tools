@@ -1,8 +1,8 @@
 PLAIN:
-  toggle 1_000_000 times:  432_000_089 cycles
+  toggle 1_000_000 times:  336_000_321 cycles
 XBYTE:
-  toggle 1_000_000 times:  192_000_057 cycles
+  toggle 1_000_000 times:  160_000_129 cycles
 JIT
-  toggle 1_000_000 times:  216_001_953 cycles
+  toggle 1_000_000 times:  168_001_865 cycles
 OPTJIT
-  toggle 1_000_000 times:  168_576_047 cycles
+  toggle 1_000_000 times:  136_691_983 cycles
