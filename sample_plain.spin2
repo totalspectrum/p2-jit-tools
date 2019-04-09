@@ -1,0 +1,131 @@
+''
+'' Plain interpreter for simple VM
+''
+
+interpreter_start
+		'' initialize serial
+		call	#ser_init
+		'' load up LUT table
+		loc	pa, #\@opcode_table
+		setq2	#$100
+		rdlong	$0, pa
+
+		'' set the stack pointer
+		loc	ptra, #@stack_base
+		'' and the initial PC
+		loc	ptrb, #@InitialPC
+
+		'' now run
+		'' print a message
+		mov	uart_str, ##@start_message
+		call	#ser_str
+		
+main_loop
+		'' load the next bytecode
+		rdbyte	pa, ptrb++
+
+		'' look it up in LUT
+		rdlut	pa, pa
+
+		'' and execute it, returning to main_loop
+		push	#main_loop
+		jmp	pa
+
+
+		'' actual functions
+halt_instr
+		drvnot	#57
+		waitx	##20_000_000
+		jmp	#halt_instr
+
+pushim_instr
+		wrlong	tos, ptra++
+	_ret_	rdlong	tos, ptrb++	' read value from PC
+
+load_instr
+	_ret_	rdlong	tos, tos
+
+store_instr
+		mov	temp, tos
+		rdlong	tos, --ptra
+		wrlong	tos, temp
+	_ret_	rdlong	tos, --ptra
+
+add_instr
+		mov	temp, tos
+		rdlong	tos, --ptra
+	_ret_	add	tos, temp
+
+sub_instr
+		mov	temp, tos
+		rdlong	tos, --ptra
+	_ret_	sub	tos, temp
+
+jz_instr
+		cmp	tos, #0 wcz
+		rdlong	tos, --ptra	' pop off tos
+		rdlong	temp, ptrb++	' fetch new PC
+	if_z	mov	ptrb, temp	' if Z, set new pc
+		ret
+		
+jneg_instr
+		cmp	tos, #0 wcz
+		rdlong	tos, --ptra	' pop off tos
+		rdlong	temp, ptrb++	' fetch new PC
+	if_c	mov	ptrb, temp	' if tos < 0, set new pc
+		ret
+pinlo_instr
+		drvl	tos
+	_ret_	rdlong	tos, --ptra
+
+pinhi_instr
+		drvh	tos
+	_ret_	rdlong	tos, --ptra
+
+delay_instr
+		waitx	tos
+	_ret_	rdlong	tos, --ptra
+
+getcnt_instr
+		wrlong	tos, ptra++
+	_ret_	getct	tos
+
+prhex_instr
+		mov	uart_num, tos
+		rdlong	tos, --ptra
+		jmp	#ser_hex
+
+prstr_instr
+		mov	uart_str, tos
+		rdlong	tos, --ptra
+		jmp	#ser_str
+
+dup_instr
+	_ret_	wrlong	tos, ptra++
+
+swap_instr
+		rdlong	temp, --ptra
+		wrlong	tos, ptra++
+	_ret_	mov	tos, temp
+		
+		'' variables
+uart_char	long 0
+
+uart_num
+uart_str	long 0
+
+tos		long 0
+temp		long 0
+memp		long 0
+
+		'' hub data
+		orgh
+opcode_table
+		long	halt_instr, pushim_instr, load_instr, store_instr
+		long	add_instr, sub_instr, jz_instr, jneg_instr
+		long	pinlo_instr, pinhi_instr, prstr_instr, prhex_instr
+		long	getcnt_instr, delay_instr, dup_instr, swap_instr
+		long	halt_instr[240]
+
+start_message
+		byte "xbyte sample program", 13, 10, 0

@@ -1,0 +1,34 @@
+a very simple virtual machine
+
+instructions:
+00 = HALT: stops machine
+01 = PUSHIM X: push(X)
+02 = LOAD: push(memory[pop()])
+03 = STORE: a = pop(); memory[a] = pop()
+04 = ADD:   b = pop(); a = pop(); push(a+b)
+05 = SUB:   b = pop(); a = pop(); push(a-b)
+06 = JZ X:  a = pop(); if (a == 0) PC = X
+07 = JNEG X: a = pop(); if (a < 0) PC = X
+08 = PINLO: a = pop(); drvl a
+09 = PINHI: a = pop(); drvh a
+0A = PRSTR long: prints string pointed to by "long"
+0B = PRHEX: prints hex value at top of stack
+0C = GETCNT: push(getct()) // push current cycle counter
+0D = DELAY: wait for number of cycles on top of stack
+0E = DUP: duplicate top of stack
+0F = SWAP: swap top two elements of stack
+
+useful sequences:
+
+unconditional jump to target:
+
+byte OP_PUSHIM
+long 0
+byte JZ
+long target
+
+print current top of stack, without disturbing it:
+
+byte OP_DUP
+byte OP_PRHEX
+
