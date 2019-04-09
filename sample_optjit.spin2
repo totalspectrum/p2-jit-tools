@@ -4,10 +4,10 @@
 ''
 
 ' define DEBUG_ENGINE to debug JIT engine internals
-#define DEBUG_ENGINE
+'#define DEBUG_ENGINE
 ' define DEBUG_ENGINE and USE_DISASM to disassemble code as it is emitted
 ' the disassembler is very incomplete!
-#define USE_DISASM
+'#define USE_DISASM
 
 interpreter_start
 		'' initialize serial
@@ -86,6 +86,7 @@ compile_store_routine
 		call	#stack_drop
 		setd	store_instr_pat, stack_reg_tos
 		call	#stack_drop
+		mov	jit_instrptr, #store_instr_pat
 		jmp	#emit_1
 
 		''

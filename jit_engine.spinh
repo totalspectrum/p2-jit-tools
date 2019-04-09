@@ -100,7 +100,13 @@ jit_trampoline_set_pc
 #else
 		sub	pb, #4
 		rdlong	jit_condition, pb      ' fetch original
-#endif		
+#endif
+#ifdef DEBUG_ENGINE
+		mov	uart_char, #"^"
+		call	#ser_tx
+		mov	uart_num, jit_condition
+		call	#ser_hex
+#endif
 		and	jit_condition, jit_cond_mask
 		
 		mov	jit_instr, jit_plain_jmp_pat
@@ -113,6 +119,15 @@ jit_trampoline_set_pc
 #else
 		wrlong 	jit_instr, pb
 #endif		
+#ifdef DEBUG_ENGINE
+		mov	uart_char, #"^"
+		call	#ser_tx
+		mov	uart_num, pb
+		call	#ser_hex
+		call	#ser_nl
+		mov	dis_instr, jit_instr
+		call	#disassemble
+#endif
 goto_cache
 		jmp	jit_orig_cachepc+0	' indirect jump to the cached code
 
