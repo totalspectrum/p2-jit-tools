@@ -1,0 +1,344 @@
+''
+'' JIT interpreter for sample bytecode
+'' Optimized version
+''
+
+'#define DEBUG_ENGINE
+
+interpreter_start
+		'' initialize serial
+		call	#ser_init
+
+		'' initialize JIT compiler
+		call	#jit_init
+		
+		'' set the stack pointer
+		loc	ptra, #@stack_base
+		'' and the initial PC
+		loc	ptrb, #@InitialPC
+
+		'' print a message
+		mov	uart_str, ##@start_message
+		call	#ser_str
+		
+		'' now run forever
+		jmp    #jit_set_pc
+
+address_mask	long   $000fffff
+
+		'' here's the main entry point that the JIT calls;
+		'' ptrb points at the bytecode to compile
+compile_bytecode
+
+		'' make sure our stack cache won't overflow
+		call	#stack_reserve_2
+
+		'' fetch next instruction
+		rdbyte	jit_instr, ptrb++
+		cmp	jit_instr, #$10 wcz	' make sure it's a valid instruction
+	if_ae	mov	jit_instr, #0		' if not, replace with HALT
+
+		alts	jit_instr, #opcode_table
+		mov	temp, 0-0		' fetch pattern
+		mov	pb, temp		' save a copy in pb
+		and	temp, address_mask	' extract the address
+		jmp	temp  			' and go do it
+
+		''
+		'' compile a pushim instruction
+		''
+compile_immediate_routine
+		call	#stack_grow			' make room on stack
+		rdlong	temp, ptrb++			' fetch the immediate
+		sets	pushim_instr_pat+1, temp	' set the low bits
+		shr	temp, #9	 		' extract upper 23 bits
+		and	pushim_instr_pat, ##$FF800000	' zero out immediate bits of augment
+		or	pushim_instr_pat, temp		' and now set them to correct values
+		setd	pushim_instr_pat+1, stack_reg_tos
+		mov	jit_instrptr, #pushim_instr_pat
+		mov	pb, #2
+		jmp	#jit_emit			' go emit the whole augmented instruction
+
+		''
+		'' compile a LOAD instruction
+		''
+compile_load_routine
+		call	#stack_fill_1	' make sure we have a value in register
+		sets	load_instr_pat, stack_reg_tos
+		setd	load_instr_pat, stack_reg_tos
+		mov	jit_instrptr, #load_instr_pat
+emit_1
+		mov	pb, #1
+		jmp	#jit_emit
+		
+compile_store_routine
+		call	#stack_fill_2	' need two valid stack entries
+		sets	store_instr_pat, stack_reg_tos
+		call	#stack_drop
+		setd	store_instr_pat, stack_reg_tos
+		call	#stack_drop
+		jmp	#emit_1
+
+		''
+		'' common routine for compiling math operations
+		'' assumes math_instr_pat has been set to add_instr_pat,
+		'' sub_instr_pat, and so on
+		''
+common_math_routine
+		call	#stack_fill_2	' need two valid stack entries
+		sets	math_instr_pat, stack_reg_tos
+		call	#stack_drop
+		setd	math_instr_pat, stack_reg_tos
+		mov	jit_instrptr, #math_instr_pat
+		jmp	#emit_1
+		
+compile_add_routine
+		mov	math_instr_pat, add_instr_pat
+		jmp	#common_math_routine
+compile_sub_routine
+		mov	math_instr_pat, sub_instr_pat
+		jmp	#common_math_routine
+
+
+		'' these could probably all be consolidated
+compile_pinlo_routine
+		mov	single_dest_op_pat, pinlo_instr_pat
+common_dest_op_routine
+		call	#stack_fill_1
+		setd	single_dest_op_pat, stack_reg_tos
+		call	#stack_drop
+		mov	jit_instrptr, #single_dest_op_pat
+		jmp	#emit_1
+		
+compile_pinhi_routine
+		mov	single_dest_op_pat, pinhi_instr_pat
+		jmp	#common_dest_op_routine
+
+compile_delay_routine
+		mov	single_dest_op_pat, delay_instr_pat
+		jmp	#common_dest_op_routine
+
+compile_getcnt_routine
+		call	#stack_grow
+		setd	getcnt_instr_pat, stack_reg_tos
+		mov	jit_instrptr, #getcnt_instr_pat
+		jmp	#emit_1
+
+compile_prhex_routine
+		call	#stack_fill_1	' need at least one item on stack
+		sets	prhex_instr_pat, stack_reg_tos
+		mov	jit_instrptr, #prhex_instr_pat
+		call	#stack_drop
+		mov	pb, #2
+		jmp	#jit_emit
+
+compile_prstr_routine		
+		call	#stack_fill_1
+		sets	prstr_instr_pat, stack_reg_tos
+		mov	jit_instrptr, #prstr_instr_pat
+		call	#stack_drop
+		mov	pb, #2
+		jmp	#jit_emit
+
+compile_dup_routine
+		call	#stack_fill_1
+		sets	dup_instr_pat, stack_reg_tos
+		call	#stack_grow
+		setd	dup_instr_pat, stack_reg_tos
+		mov	#jit_instrptr, #dup_instr_pat
+		jmp	#emit_1
+
+compile_swap_routine
+		call	#stack_fill_2
+		sets	swap_instr_pat, stack_reg_tos
+		setd	swap_instr_pat+1, stack_reg_tos
+		call	#stack_drop
+		sets	swap_instr_pat+1, stack_reg_tos
+		setd	swap_instr_pat+2, stack_reg_tos
+		call	#stack_grow
+		mov	jit_instrptr, #swap_instr_pat
+		mov	pb, #3
+		jmp	#jit_emit
+
+		''
+		'' compile a conditional direct branch
+		''
+compile_jneg_routine
+		mov	jit_condition, #%1100		' condition for IF_C
+common_branch_routine
+		call	#stack_fill_1
+		setd	compare_instr_pat, stack_reg_tos
+		call	#stack_drop
+		mov	jit_instrptr, #compare_instr_pat
+		callpb	#1, #jit_emit			' emit the compare
+		rdlong	jit_instrptr, ptrb++		' get new PC
+		jmp	#jit_emit_direct_branch		' and now compile the branch
+
+compile_jz_routine
+		mov	jit_condition, #%1010		' condition for IF_Z
+		jmp	#common_branch_routine
+
+		'' compile a halt
+		'' this is basically a standard pattern, but also needs to force
+		'' a cache line close (it's kind of like a jump)
+compile_halt_routine
+		mov	jit_instrptr, #halt_instr_pat
+		callpb	#4, #jit_emit
+		'' force cache line close
+		mov	 jit_condition, #0  ' NO-OP branch, to force close
+		mov	 jit_instrptr, #0
+		jmp	 #jit_emit_direct_branch
+		
+		'' patterns for runtime code
+
+halt_instr_pat
+		'' four instructions (including an augs)
+		drvnot	#57
+		waitx	##20_000_000
+		jmp	#\halt_instr_pat		' as always, use absolute branch in generated code
+
+		'' two instructions:
+		'' mov tos, ##x
+		'' pushim_instr_pat+0 is the augment
+		'' pushim_instr_pat+1 is the actual move instruction
+pushim_instr_pat
+		mov	0-0, ##0
+
+
+load_instr_pat
+		rdlong	0-0, 0-0
+
+		''
+		'' store works by doing
+		'' store nos, tos
+		'' drop2
+		''
+store_instr_pat
+		wrlong	1-1, 0-0
+
+		''
+		'' math operations are
+		'' add nos, tos
+		'' drop1
+		''
+math_instr_pat
+		add	1-1, 0-0
+		
+add_instr_pat
+		add	1-1, 0-0
+
+sub_instr_pat
+		sub	1-1, 0-0
+
+compare_instr_pat
+		cmps	0-0, #0 wcz
+
+		'' placeholder for common_dest_routine
+single_dest_op_pat
+		nop
+		
+pinlo_instr_pat
+		drvl	0-0
+
+pinhi_instr_pat
+		drvh	0-0
+
+delay_instr_pat
+		waitx	0-0
+
+getcnt_instr_pat
+		getct	0-0
+
+prhex_instr_pat
+		mov	uart_num, 0-0
+		call	#\ser_hex	' make sure to use absolute not relative addressing
+
+prstr_instr_pat
+		mov	uart_str, 0-0
+		call	#\ser_str	' must be an absolute address!
+
+dup_instr_pat
+		mov	1-1, 0-0
+		
+swap_instr_pat
+		mov	temp, 0-0
+		mov	0-0, 1-1
+		mov	1-1, temp
+		
+		'' variables
+uart_char	long 0
+
+uart_num
+uart_str	long 0
+
+tos		long 0
+jit_temp
+temp		long 0
+memp		long 0
+
+		'' opcode table
+		'' for this VM we use a pretty straightforward mapping of
+		'' instructions to patterns
+		'' the only real exception are the jump functions
+		'' the longest possible pattern is 7 instructions (we're not there yet)
+		'' or 3 bits; so we're going to compress this table as follows:
+		''   low 20 bits: address of compilation routine
+		''   upper 12 bits: argument for compilation routine, consisting of:
+		''       3 bits length of pattern
+		''       9 bits COG address of pattern
+		'' we've left 20 bits for the compilation routine just in case we need
+		'' to put some in HUB, but for now we'll try to fit them in COG
+		''
+opcode_table
+{00}		long	compile_halt_routine
+{01}		long	compile_immediate_routine
+{02}		long	compile_load_routine
+{03}            long    compile_store_routine
+
+{04}		long	compile_add_routine
+{05}		long	compile_sub_routine
+{06}		long	compile_jz_routine
+{07}		long	compile_jneg_routine
+
+{08}		long	compile_pinlo_routine
+{09}		long	compile_pinhi_routine
+{0A}		long	compile_prstr_routine
+{0B}		long	compile_prhex_routine
+
+{0C}		long	compile_getcnt_routine
+{0D}		long	compile_delay_routine
+{0E}		long	compile_dup_routine
+{0F}		long	compile_swap_routine
+
+#include "stack_cache.spinh"
+#include "jit_engine.spinh"
+
+jit_base_of_cache_mem
+		long	$40000
+jit_top_of_cache_mem
+		long	$48000 - 16
+jit_condition
+		res	1
+jit_instr
+		res	1
+jit_instrptr
+		res	1
+jit_cachepc
+		res	1
+jit_orig_cachepc
+		res	1
+temp2
+		res	1
+
+		fit	$1e0
+		
+		orgh
+start_message
+		byte "JIT sample program", 13, 10, 0
+
+		alignl
+CACHE_BASE
+		long 0[CACHE_SIZE]
+CACHE_END
+
+

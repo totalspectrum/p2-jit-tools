@@ -5,9 +5,11 @@
 InitialPC
   byte OP_PUSHIM
   long @startmsg
+  byte OP_PRHEX
   byte OP_PRSTR
-
+  
   byte OP_GETCNT
+
   byte OP_PUSHIM
   long @starttime
   byte OP_STORE

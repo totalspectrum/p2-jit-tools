@@ -1,0 +1,77 @@
+''
+'' simple stack cache routines
+'' The stack cache is an array of REG_AVAIL registers
+''   stack_reg_used is 0 .. REG_AVAIL
+''   stack_reg_tos points to stack_reg[stack_reg_used-1]
+'' These hold "regs_used" elements of the stack locally.
+''
+'' entry points:
+''   stack_empty:  flushes all registers out to the real (HUB) stack
+''   stack_fill_1:  makes sure at least 1 register is valid
+''   stack_fill_2:  makes sure at least 2 registers are valid
+''   stack_reserve_2: makes sure there is room for at least 2 more registers
+''                 if there is not, flushes to HUB
+''   stack_grow:  adds another element to the stack, puts no value in it
+''                NOTE: caller is reponsible for making sure there is room!
+''   stack_drop:  drops an element from the stack
+''   stack_drop_2: drops 2 elements from the stack
+''
+#define REG_AVAIL 8
+
+stack_reg
+		long 0[REG_AVAIL]
+
+stack_reg_used	long 0
+stack_reg_tos	long stack_reg-1
+
+stack_empty
+		cmp	stack_reg_used, #0 wz
+	if_z	ret
+		'' write stack_reg_used values out
+		mov	pb, stack_reg_used  ' save original value
+		sub	stack_reg_used, #1
+		setq	stack_reg_used
+		wrlong	stack_reg, ptra
+		shl	pb, #2
+		add	ptra, pb
+		mov	stack_reg_used, #0
+	_ret_	mov	stack_reg_tos, #stack_reg-1
+		
+stack_reserve_2
+		cmp	stack_reg_used, #REG_AVAIL-2 wcz
+	if_b	ret
+		jmp	#stack_empty
+
+stack_grow
+		add	stack_reg_used, #1
+	_ret_	add	stack_reg_tos, #1
+
+stack_drop
+		sub	stack_reg_used, #1
+	_ret_	sub	stack_reg_tos, #1
+
+stack_drop_2
+		sub	stack_reg_used, #2
+	_ret_	sub	stack_reg_tos, #2
+
+stack_fill_1
+		cmp	stack_reg_used, #0 wcz
+	if_nz	ret
+do_fill_1
+		'' OK, need to fetch 1 element from memory into stack_reg[0]
+		rdlong	stack_reg, --ptra
+		add	stack_reg_used, #1
+	_ret_	add	stack_reg_tos, #1
+		
+stack_fill_2
+		cmp	stack_reg_used, #2 wcz
+	if_ae	ret			' if 2 or more cached already, returned
+		cmp	stack_reg_used, #1 wz
+	if_nz	jmp	#do_fill_2
+		mov	stack_reg+1, stack_reg
+		jmp	#do_fill_1
+do_fill_2
+		rdlong	stack_reg+1, --ptra
+		rdlong	stack_reg, --ptra
+		add	stack_reg_used, #2
+	_ret_	add	stack_reg_tos, #2

@@ -37,6 +37,8 @@ interpreter_start
 #include "sample_xbyte.spin2"
 #elseifdef USE_JIT
 #include "sample_jit.spin2"
+#elseifdef USE_OPT_JIT
+#include "sample_optjit.spin2"
 #else
 #error no interpreter specified
 #endif
