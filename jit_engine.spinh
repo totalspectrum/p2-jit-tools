@@ -84,7 +84,7 @@ jit_trampoline_set_pc
 		add	jit_instr, #CACHE_TAG_SIZE
 		rdlut	jit_orig_cachepc, jit_instr
 
-		'' if pb is <> 4, then it's a return address from
+		'' if pb is <> 0, then it's a return address from
 		'' the instruction that came here; fix that instruction
 		'' up
 		'' BEWARE: pb can come in with some high bits set
@@ -147,7 +147,10 @@ compile_loop
 		mov	temp, jit_top_of_cache_mem
 		subs	temp, jit_cachepc wcz
 	if_a	jmp	#compile_loop
-
+#ifdef DEBUG_ENGINE
+		mov	uart_char, #"U"		' cache full...
+		call	#ser_tx
+#endif
 close_trace
 		jmp	#jit_emit_jump_to_ptrb
 
@@ -174,6 +177,10 @@ jit_emit_direct_branch
 		mov	jit_instrptr, #jit_direct_jump_pat
     if_nz	callpb 	#2, #jit_emit		' skip branch if condition is 0
 jit_finish_line
+#ifdef DEBUG_ENGINE
+		mov	uart_char, #"|"
+		call	#ser_tx
+#endif
 		cmp	jit_condition, jit_cond_mask wz
     if_z	jmp	jit_orig_cachepc+0
     
@@ -209,18 +216,26 @@ jit_emit_indirect_branch
 tmp_ptr long 0
 #endif
 
-#ifdef USE_LUT_CACHE
 jit_emit
+#ifdef DEBUG_ENGINE
+		mov	uart_char, #"+"
+		call	#ser_tx
+		mov	uart_num, pb
+		call	#ser_hex
+		mov	uart_num, jit_cachepc
+		call	#ser_hex
+#endif
+#ifdef USE_LUT_CACHE
+jit_emit_loop
 		setd	do_lut_wr, jit_instrptr
 		sub	pb, #1 wz
 		add	jit_instrptr, #1
 do_lut_wr
 		wrlut	0-0, jit_cachepc
 		add	jit_cachepc, #1
-	if_nz	jmp	#jit_emit
+	if_nz	jmp	#jit_emit_loop
 		ret
 #else
-jit_emit
 		setd	do_emit_instr, jit_instrptr
 		sub	pb, #1 wz
 	if_nz	setq	pb

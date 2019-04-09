@@ -337,9 +337,9 @@ temp2
 start_message
 		byte "JIT sample program", 13, 10, 0
 
-#ifndef USE_LUT_CACHE
 		orgh	$800  ' make sure we are past LUT addresses
 		
+#ifndef USE_LUT_CACHE
 		' the JIT ENGINE will expect
 		' CACHE_BASE and CACHE_END to be
 		' defined; it also expects
@@ -349,6 +349,3 @@ CACHE_BASE
 		long 0[1024]
 CACHE_END
 #endif
-
-
-

@@ -2,7 +2,13 @@ PLAIN:
   toggle 1_000_000 times:  336_000_321 cycles
 XBYTE:
   toggle 1_000_000 times:  160_000_129 cycles
+
 JIT
   toggle 1_000_000 times:  168_001_865 cycles
 OPTJIT
   toggle 1_000_000 times:  136_691_983 cycles
+
+JIT w. LUT cache
+  toggle 1_000_000 times:  120_002_177 cycles
+OPTJIT w. LUT cache
+  toggle 1_000_000 times:  116_140_006 cycles

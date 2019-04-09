@@ -1,3 +1,6 @@
+'' define this to make the JIT versions use LUT cache
+#define USE_LUT_CACHE
+
 ''
 '' a very simple virtual machine
 '' instructions:
