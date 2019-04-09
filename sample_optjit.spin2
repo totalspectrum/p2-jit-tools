@@ -4,9 +4,9 @@
 ''
 
 ' define DEBUG_ENGINE to debug JIT engine internals
-'#define DEBUG_ENGINE
 ' define DEBUG_ENGINE and USE_DISASM to disassemble code as it is emitted
 ' the disassembler is very incomplete!
+'#define DEBUG_ENGINE
 '#define USE_DISASM
 
 interpreter_start
@@ -179,6 +179,11 @@ common_branch_routine
 		call	#stack_fill_1
 		setd	compare_instr_pat, stack_reg_tos
 		call	#stack_drop
+
+		' when we branch we have to flush the stack out
+		call   #stack_empty
+		
+		' now compile the branch
 		mov	jit_instrptr, #compare_instr_pat
 		callpb	#1, #jit_emit			' emit the compare
 		rdlong	jit_instrptr, ptrb++		' get new PC
@@ -192,8 +197,11 @@ compile_jz_routine
 		'' this is basically a standard pattern, but also needs to force
 		'' a cache line close (it's kind of like a jump)
 compile_halt_routine
+		'' flush everything to RAM
+		call	#stack_empty
 		mov	jit_instrptr, #halt_instr_pat
 		callpb	#4, #jit_emit
+
 		'' force cache line close
 		mov	 jit_condition, #0  ' NO-OP branch, to force close
 		mov	 jit_instrptr, #0

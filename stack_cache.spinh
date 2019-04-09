@@ -24,18 +24,31 @@ stack_reg
 stack_reg_used	long 0
 stack_reg_tos	long stack_reg-1
 
+'' set the stack cache up for the start of a sequence
+stack_reset
+		mov	stack_reg_used, #0
+	_ret_	mov	stack_reg_tos, #stack_reg-1
+		
+stack_empty_pat
+		setq	#0
+		wrlong	stack_reg, ptra
+		add	ptra, #0-0
 stack_empty
 		cmp	stack_reg_used, #0 wz
 	if_z	ret
+		'' need to compile code to write stack_reg_used out
 		'' write stack_reg_used values out
 		mov	pb, stack_reg_used  ' save original value
 		sub	stack_reg_used, #1
-		setq	stack_reg_used
-		wrlong	stack_reg, ptra
+		setd	stack_empty_pat, stack_reg_used
 		shl	pb, #2
-		add	ptra, pb
-		mov	stack_reg_used, #0
-	_ret_	mov	stack_reg_tos, #stack_reg-1
+		sets	stack_empty_pat+2, pb
+		mov	pb, #3
+		mov	jit_instrptr, #stack_empty_pat
+		call	#jit_emit
+
+		jmp	#stack_reset
+
 		
 stack_reserve_2
 		cmp	stack_reg_used, #REG_AVAIL-2 wcz
@@ -58,20 +71,29 @@ stack_fill_1
 		cmp	stack_reg_used, #0 wcz
 	if_nz	ret
 do_fill_1
-		'' OK, need to fetch 1 element from memory into stack_reg[0]
-		rdlong	stack_reg, --ptra
+		'' OK, need to compile code to fetch 1 element
+		'' from memory into stack_reg[0]
+		mov	jit_instrptr, #do_fill_1_pat
+		callpb	#1, #jit_emit
 		add	stack_reg_used, #1
 	_ret_	add	stack_reg_tos, #1
-		
+
+do_fill_2_pat
+		rdlong	stack_reg+1, --ptra
+		'' need to fall through
+do_fill_1_pat
+		rdlong	stack_reg, --ptra
+fill_1_of_2_pat
+		mov	stack_reg+1, stack_reg
+
 stack_fill_2
 		cmp	stack_reg_used, #2 wcz
 	if_ae	ret			' if 2 or more cached already, returned
 		cmp	stack_reg_used, #1 wz
 	if_nz	jmp	#do_fill_2
-		mov	stack_reg+1, stack_reg
+		mov	jit_instrptr, #fill_1_of_2_pat
+		callpb	#1, #jit_emit
 		jmp	#do_fill_1
 do_fill_2
-		rdlong	stack_reg+1, --ptra
-		rdlong	stack_reg, --ptra
 		add	stack_reg_used, #2
 	_ret_	add	stack_reg_tos, #2

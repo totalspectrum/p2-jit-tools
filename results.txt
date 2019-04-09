@@ -6,9 +6,9 @@ XBYTE:
 JIT w. HUB cache
   toggle 1_000_000 times:  168_001_865 cycles
 OPTJIT w. HUB cache
-  toggle 1_000_000 times:   32_002_251 cycles
+  toggle 1_000_000 times:   64_002_363 cycles
 
 JIT w. LUT cache
   toggle 1_000_000 times:  120_002_177 cycles
 OPTJIT w. LUT cache
-  toggle 1_000_000 times:   22_002_303 cycles
+  toggle 1_000_000 times:   48_002_425 cycles
