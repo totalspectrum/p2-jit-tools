@@ -172,3 +172,24 @@ the `ptrb` register must have been generated prior to this call.
 
 This function will not return, so it must be the last one called when
 generating code for a VM branch instruction.
+
+## Variables
+
+You need to provide the JIT engine with some variables.
+
+### jit_cachepc
+
+Scratch variable used inside of the JIT to keep track of output
+
+### jit_instr
+
+Scratch variable used inside of the JIT
+
+### jit_instrptr
+
+Points to instruction sequences to emit.
+
+### jit_orig_cachepc
+
+Used for caching.
+
