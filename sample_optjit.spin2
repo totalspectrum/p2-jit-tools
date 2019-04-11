@@ -351,7 +351,7 @@ jit_cachepc
 		res	1
 jit_orig_cachepc
 		res	1
-temp2
+jit_temp2
 		res	1
 
 		fit	$1e0

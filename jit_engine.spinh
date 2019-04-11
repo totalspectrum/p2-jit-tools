@@ -137,8 +137,8 @@ cache_miss
 		' so we have to compile a new trace
 
 		' if the cache is full, flush it
-		mov	temp2, jit_top_of_cache_mem
-		subs	temp2, jit_cachepc wcz
+		mov	jit_temp2, jit_top_of_cache_mem
+		subs	jit_temp2, jit_cachepc wcz
 
     if_be	call	#jit_reinit_cache
 
