@@ -15,6 +15,7 @@ times and then prints elapsed cycles. This is to check timing.
 
   * Makefile:           used to build the 3 interpreters
   * jit_engine.spinh:   the JIT engine, see JIT.md for details
+  * JIT.md:             documentation for jit_engine.spinh
   * sample.spin2:       common top level for sample program
   * sample_jit.spin2:   JIT version of sample code
   * sample_optjit.spin2:  optimizing JIT version of sample code
