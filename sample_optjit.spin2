@@ -295,8 +295,6 @@ temp		long 0
 memp		long 0
 
 #ifdef USE_DISASM
-#include "util_disasm.spin2"
-
 dis_instr	long	0
 dis_temp1	long	0
 dis_temp2	long	0
@@ -358,7 +356,7 @@ jit_temp2
 		
 		orgh
 start_message
-		byte "JIT sample program", 13, 10, 0
+		byte "Optimized JIT sample program", 13, 10, 0
 
 		orgh	$800  ' make sure we are past LUT addresses
 		
@@ -375,5 +373,6 @@ CACHE_END
 
 #ifdef USE_DISASM
 		alignl
+#include "util_disasm.spin2"
 #include "disasm/disasm_tab.spin2"
 #endif

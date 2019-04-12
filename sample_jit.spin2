@@ -1,7 +1,11 @@
 ''
 '' JIT interpreter for sample bytecode
 ''
+' define DEBUG_ENGINE to debug JIT engine internals
+' define DEBUG_ENGINE and USE_DISASM to disassemble code as it is emitted
+' the disassembler is very incomplete!
 '#define DEBUG_ENGINE
+'#define USE_DISASM
 
 interpreter_start
 		'' initialize serial

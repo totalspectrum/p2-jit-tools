@@ -456,25 +456,43 @@ instr_p2[] = {
 //
 // if pattern & mask == pattern then we can print the instruction
 // this is controlled via "flags":
-//    0x01: print src
-//    0x02: print dst
-//    0x04: print wcz
-//    0x08: print condition
-//    0x10: check for immediate on src
-//    0x20: print augmented src
-//    0x40: print loc src
-//    0x80: print loc dst
-//    0x100: accept extended RDWR syntax like ptra++
-//
-#define PRINT_SRC  0x01
-#define PRINT_DST  0x02
-#define PRINT_WCZ  0x04
-#define PRINT_COND 0x08
-#define PRINT_IMMSRC 0x10
-#define PRINT_AUGSRC 0x20
-#define PRINT_LOCSRC  0x40
-#define PRINT_LOCDST  0x80
-#define PRINT_RDWR    0x100
+//    0x0:  default: dst, {#}src
+//    0x1:  augment: #dst<<9
+//    0x2:  loc: #dst
+//    0x3:  dstonly: {#}dst
+//    0x4:  srconly: {#}src
+//    0x5:  rdlong/wrlong with ptr augments
+//    0x6:  no operands
+//    0x7:  long jmp
+
+#define PRINT_DFLT 0x0
+#define PRINT_AUG  0x1
+#define PRINT_LOC  0x2
+#define PRINT_DSTONLY 0x3
+#define PRINT_SRCONLY 0x4
+#define PRINT_RDWR    0x5
+#define PRINT_NONE    0x6
+#define PRINT_LONG_JMP 0x7
+
+static char *p2cond[] = {
+    "_ret_  ",
+    "if_a   ",
+    "if_01  ",
+    "if_ae  ",
+    "if_10  ",
+    "if_nz  ",
+    "if_dif ",
+    "if_!11 ",
+
+    "if_11  ",
+    "if_sam ",
+    "if_z   ",
+    "if_!10 ",
+    "if_c   ",
+    "if_!01 ",
+    "if_be  ",
+    "       "
+};
 
 int main()
 {
@@ -485,52 +503,51 @@ int main()
     uint32_t flags;
     FILE *f = stdout;
     
+    printf("disasm_tab\n");
     i = 0;
     for (instr = &instr_p2[0]; instr->name; instr++, i++) {
-        flags = PRINT_COND; // normally print condition
         pattern = instr->binary;
         switch(instr->ops) {
         case NO_OPERANDS:
             if (!strcmp(instr->name, "nop")) {
                 mask = 0xffffffff;
-                flags = 0;
             } else {
                 mask = 0x0fffffff;
             }
+            flags = PRINT_NONE;
             break;
-        case TWO_OPERANDS_DEFZ:
         case P2_RDWR_OPERANDS:
             mask = 0x0fe00000;
-            flags |= PRINT_SRC|PRINT_DST|PRINT_IMMSRC|PRINT_RDWR|PRINT_WCZ;
+            flags = PRINT_RDWR;
             break;
         case P2_TJZ_OPERANDS:
-            flags |= PRINT_DST|PRINT_SRC|PRINT_IMMSRC;
             mask = 0x0ff80000;
+            flags = PRINT_DFLT;
             break;
         case DST_OPERAND_ONLY:
         case P2_DST_CONST_OK:
-            flags |= PRINT_DST|PRINT_WCZ|PRINT_IMMSRC;
+            flags = PRINT_DSTONLY;
             mask = 0x0fe001ff;
             break;
         case SRC_OPERAND_ONLY:
             mask = 0x0ff80000;
-            flags |= PRINT_SRC|PRINT_IMMSRC;
+            flags = PRINT_SRCONLY;
             break;
         case P2_JUMP:
             mask = 0x0fe00000;
-            flags |= PRINT_LOCSRC;
+            flags = PRINT_LONG_JMP;
             break;
         case P2_LOC:
             mask = 0x0f800000;
-            flags |= PRINT_LOCSRC|PRINT_LOCDST;
+            flags = PRINT_LOC;
             break;
         case P2_AUG:
             mask = 0x0f800000;
-            flags |= PRINT_AUGSRC;
+            flags = PRINT_AUG;
             break;
         default:
             mask = 0x0fe00000;
-            flags |= PRINT_DST|PRINT_SRC|PRINT_IMMSRC|PRINT_WCZ;
+            flags = PRINT_DFLT;
             break;
         }
         fprintf(f, "\tlong\t$%08x, $%08x, $%08x, @@@name_%03d\n",
@@ -541,6 +558,12 @@ int main()
     i = 0;
     for (instr = &instr_p2[0]; instr->name; instr++, i++) {
         fprintf(f, "name_%03d\tbyte\t\"%-7s\", 0\n", i, instr->name);
+    }
+
+    // print the condition table
+    fprintf(f, "\ndisasm_cond_table\n");
+    for (i = 0; i < 16; i++) {
+        fprintf(f, "\t\tbyte \"%s\",0     ' $%x\n", p2cond[i], i);
     }
     return 0;
 }
