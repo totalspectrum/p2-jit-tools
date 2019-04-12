@@ -3,9 +3,10 @@
 '' Optimized version
 ''
 
-' define DEBUG_ENGINE to debug JIT engine internals
-' define DEBUG_ENGINE and USE_DISASM to disassemble code as it is emitted
-' the disassembler is very incomplete!
+' use define DEBUG_ENGINE to debug JIT engine internals
+' use define DEBUG_ENGINE and USE_DISASM to disassemble code as it is emitted
+'  beware: the disassembler is very incomplete and may get things wrong
+
 '#define DEBUG_ENGINE
 '#define USE_DISASM
 

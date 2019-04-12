@@ -550,6 +550,21 @@ int main()
             flags = PRINT_DFLT;
             break;
         }
+        /* if WC bits are not permitted, increase the mask size */
+        switch (instr->flags) {
+        case 0:
+            mask |= (3<<19);
+            break;
+        case FLAG_WC:
+            mask |= (1<<19);
+            break;
+        case FLAG_WZ:
+            mask |= (2<<19);
+            break;
+        default:
+            /* do not change the mask in the default case */
+            break;
+        }
         fprintf(f, "\tlong\t$%08x, $%08x, $%08x, @@@name_%03d\n",
                pattern, mask, flags, i);
     }
